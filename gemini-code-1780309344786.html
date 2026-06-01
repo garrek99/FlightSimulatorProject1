@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Next-Gen Flight Simulator - Ultimate Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #02050a; user-select: none; }
+        
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; color: #ffffff; text-shadow: 0px 2px 4px rgba(0,0,0,1); box-sizing: border-box; padding: 20px; z-index: 10; }
+        .hud-panel { position: absolute; background: rgba(5, 10, 15, 0.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); padding: 20px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 35px rgba(0,0,0,0.8); pointer-events: auto; }
+        
+        #left-panel { left: 30px; top: 50%; transform: translateY(-50%); }
+        #right-panel { right: 30px; top: 50%; transform: translateY(-50%); }
+        
+        #top-panel { top: 20px; left: 50%; transform: translateX(-50%); text-align: center; position: absolute; background: rgba(5, 10, 15, 0.8); backdrop-filter: blur(16px); padding: 15px 40px; border-radius: 12px; border: 1px solid rgba(0, 255, 170, 0.3); box-shadow: 0 0 30px rgba(0, 255, 170, 0.1); pointer-events: auto;}
+        
+        #minimap-panel { bottom: 30px; right: 30px; top: auto; transform: none; width: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #minimap { background: rgba(2, 5, 10, 0.9); border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; box-shadow: inset 0 0 25px rgba(0,0,0,1); }
+
+        #large-map-panel { display: none; top: 50%; left: 50%; transform: translate(-50%, -50%); width: auto; flex-direction: column; align-items: center; z-index: 50; }
+        #large-map { background: rgba(2, 5, 10, 0.95); border: 2px solid rgba(0,255,170,0.4); border-radius: 12px; margin-top: 15px; box-shadow: inset 0 0 50px rgba(0,0,0,1), 0 0 40px rgba(0,0,0,0.8); }
+
+        h2 { margin: 0 0 5px 0; font-size: 1.1rem; font-weight: 600; letter-spacing: 1.5px; color: #a1d6ff; }
+        .mission-text { font-size: 0.85rem; color: #00ffaa; letter-spacing: 1.5px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase;}
+        
+        .label { font-size: 0.7rem; opacity: 0.8; letter-spacing: 1px; margin-top: 10px; margin-bottom: 5px; }
+        .value { font-size: 32px; font-weight: bold; margin-bottom: 5px; font-family: monospace;}
+        
+        .sys-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;}
+        .sys-box { background: rgba(0,0,0,0.5); padding: 10px 5px; border-radius: 8px; text-align: center; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; font-size: 0.8rem; letter-spacing: 1px;}
+        .sys-box.active { border-color: #00ffaa; color: #00ffaa; background: rgba(0, 255, 170, 0.05); text-shadow: 0 0 10px rgba(0, 255, 170, 0.5); box-shadow: 0 0 15px rgba(0,255,170,0.1);}
+        .sys-box.warning { border-color: #ffaa00; color: #ffaa00; background: rgba(255, 170, 0, 0.05); text-shadow: 0 0 10px rgba(255, 170, 0, 0.5); }
+        .sys-box.critical { border-color: #ff3333; color: #ff3333; background: rgba(255, 50, 50, 0.05); text-shadow: 0 0 10px rgba(255, 50, 50, 0.5); }
+        .assist-detail { max-width: 170px; margin-top: 7px; color: #ffffff; font-size: 0.78rem; line-height: 1.35; letter-spacing: 0.4px; opacity: 0.9; }
+
+        .gauge-container { width: 130px; height: 65px; border: 2px solid rgba(255,255,255,0.2); border-bottom: none; border-radius: 130px 130px 0 0; position: relative; overflow: hidden; background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%); margin-bottom: 15px; }
+        .gauge-container::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 28px; height: 14px; background: #fff; border-radius: 28px 28px 0 0; box-shadow: 0 -2px 8px rgba(0,0,0,0.8); }
+        .needle { width: 4px; height: 60px; background: #ff4a4a; position: absolute; bottom: 0; left: 63px; transform-origin: bottom center; transform: rotate(-90deg); border-radius: 4px 4px 0 0; transition: transform 0.05s linear; box-shadow: 0 0 8px rgba(255, 74, 74, 0.6);}
+        .red-zone { position: absolute; top: 0; right: 0; width: 45px; height: 65px; background: rgba(255,0,0,0.3); border-radius: 0 130px 0 0; clip-path: polygon(100% 0, 100% 100%, 0 100%);}
+
+        .throttle-layout { display: flex; gap: 35px; align-items: flex-end; }
+        #throttle-quadrant { width: 45px; height: 160px; background: #070a12; border: 2px solid #2a3444; border-radius: 10px; position: relative; cursor: pointer; box-shadow: inset 0 0 20px #000; }
+        #throttle-track { width: 6px; height: 140px; background: #000; position: absolute; left: 19.5px; top: 10px; border-radius: 3px; }
+        #throttle-lever { width: 65px; height: 26px; background: linear-gradient(180deg, #ffffff, #999999); border-radius: 5px; border: 1px solid #fff; position: absolute; left: -10px; bottom: 10px; cursor: grab; box-shadow: 0 5px 15px rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; transition: bottom 0.1s; }
+        #throttle-lever::before { content: '|||'; color: #222; font-size: 11px; letter-spacing: 3px; }
+        #throttle-lever:active { cursor: grabbing; background: #fff; transition: none; }
+
+        #pitch-container { position: absolute; top: 50%; left: 50%; width: 400px; height: 400px; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+        #crosshair { width: 20px; height: 20px; border: 2px solid rgba(0, 255, 170, 0.9); border-radius: 50%; position: absolute; box-shadow: 0 0 12px rgba(0,0,0,0.8); }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(0, 255, 170, 0.9); box-shadow: 0 0 8px rgba(0,0,0,0.8);}
+        #crosshair::before { top: 9px; left: -24px; width: 16px; height: 2px; }
+        #crosshair::after { top: 9px; right: -24px; width: 16px; height: 2px; }
+        #ladder { width: 100%; height: 100%; border-left: 1.5px solid rgba(255,255,255,0.15); border-right: 1.5px solid rgba(255,255,255,0.15); transition: transform 0.05s ease-out; }
+
+        #crash-screen { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff3c3c; font-size: 38px; font-weight: bold; text-align: center; background: rgba(5, 0, 0, 0.95); backdrop-filter: blur(20px); padding: 70px; border-radius: 20px; border: 2px solid #ff3c3c; box-shadow: 0 20px 60px rgba(255,0,0,0.5); pointer-events: auto; z-index: 100;}
+        #crash-screen button { background: #ffffff; color: #000; border: none; padding: 16px 32px; font-family: inherit; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 35px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px;}
+        #crash-screen button:hover { background: #e0e0e0; transform: scale(1.05); }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="hud">
+        <div id="top-panel">
+            <div class="mission-text">FLIGHT COMPUTER ACTIVE</div>
+            <div style="font-size: 26px; font-weight: bold; font-family: monospace;">NEAREST RWY: <span id="dist-val">0.0</span> NM</div>
+            <div id="nearest-name" class="label" style="color: #a1d6ff; margin-top: 5px;">INTERNATIONAL HUB</div>
+            <div id="status" class="label" style="color: #fff; margin-top: 10px; font-size: 14px;">PRE-FLIGHT CHECKS</div>
+        </div>
+        
+        <div id="left-panel" class="hud-panel">
+            <div class="throttle-layout">
+                <div>
+                    <div class="label" style="text-align: center;">AIRSPEED (KM/H)</div>
+                    <div class="gauge-container">
+                        <div class="red-zone"></div>
+                        <div id="speed-needle" class="needle"></div>
+                    </div>
+                    <div style="text-align: center;"><span id="speed-val" class="value">0</span></div>
+                </div>
+                <div>
+                    <div class="label" style="text-align: center;">ENGINE N1</div>
+                    <div id="throttle-quadrant"><div id="throttle-track"></div><div id="throttle-lever"></div></div>
+                    <div id="throttle-val" class="value" style="font-size: 22px; text-align: center; margin-top: 12px; color: #00ffaa;">0%</div>
+                </div>
+            </div>
+            <div class="sys-grid">
+                <div id="gear-ind" class="sys-box active">GEAR<br>[G]</div>
+                <div id="flap-ind" class="sys-box">FLAPS<br>[F]</div>
+                <div id="brake-ind" class="sys-box">BRAKE<br>[B]</div>
+            </div>
+        </div>
+        
+        <div id="right-panel" class="hud-panel">
+            <div class="label">ALTITUDE</div>
+            <div id="alt-val" class="value" style="color: #a1d6ff;">0</div>
+            <div class="label" style="margin-top: -5px;">FEET (RADAR)</div>
+            <div class="label" style="margin-top:25px;">FLIGHT ASSIST</div>
+            <div style="color: #00ffaa; font-weight: bold; font-size: 0.85rem; letter-spacing: 1px;" id="assist-txt">STABLE</div>
+            <div id="assist-detail" class="assist-detail">Ready for takeoff.</div>
+            <div style="margin-top: 15px; font-family: monospace; font-size: 16px;">PITCH: <span id="pitch-val" style="font-weight:bold;">0°</span></div>
+            <div style="font-family: monospace; font-size: 16px;">ROLL:  <span id="roll-val" style="font-weight:bold;">0°</span></div>
+        </div>
+
+        <div id="minimap-panel" class="hud-panel">
+            <div class="label" style="margin-top: 0;">GPS RADAR</div>
+            <canvas id="minimap" width="160" height="160"></canvas>
+            <div class="label" style="margin-bottom: 0; color: #00ffaa;">[M] FULL MAP</div>
+        </div>
+
+        <div id="large-map-panel" class="hud-panel">
+            <div style="font-size: 1.3rem; font-weight: bold; color: #a1d6ff; letter-spacing: 2px;">GLOBAL THEATER MAP</div>
+            <canvas id="large-map" width="700" height="700"></canvas>
+        </div>
+
+        <div id="pitch-container">
+            <div id="crosshair"></div>
+            <div id="ladder"></div>
+        </div>
+    </div>
+
+    <div id="crash-screen">
+        <div id="crash-reason">HULL DESTROYED</div>
+        <button onclick="resetFlight()">RESTART FLIGHT</button>
+    </div>
+
+    <script>
+        // --- 1. SETUP & ADVANCED GRAPHICS ---
+        const scene = new THREE.Scene();
+        const groundColor = new THREE.Color(0x7baecf); 
+        const highAltColor = new THREE.Color(0x040b14); 
+
+        // Massive render distance to see the giant map
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 5, 800000); let baseFOV = 60;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2; renderer.outputEncoding = THREE.sRGBEncoding;
+
+        document.body.appendChild(renderer.domElement);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x445566, 0.6); scene.add(hemiLight);
+        const sun = new THREE.DirectionalLight(0xfff5e6, 1.8);
+        sun.position.set(500, 1000, 200); sun.castShadow = true;
+        sun.shadow.mapSize.width = 4096; sun.shadow.mapSize.height = 4096; 
+        sun.shadow.camera.near = 10; sun.shadow.camera.far = 4000;
+        const d = 600; sun.shadow.camera.left = -d; sun.shadow.camera.right = d; sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d; sun.shadow.bias = -0.0001;
+        scene.add(sun); scene.add(sun.target);
+
+        scene.fog = new THREE.FogExp2(groundColor, 0.000006); 
+
+        // --- MATH CONSTANTS TO PREVENT FLICKERING FOREVER ---
+        const OCEAN_ALT = -50.0;
+        const AIRPORT_ALT = 10.5; // Physics runway, apron, and terrain perfectly share this height over the plateau
+        const PLANE_WHEEL_OFFSET = 5.6; 
+
+        const colliders = { buildings: [], trees: [] };
+        
+        // --- 12 MASSIVE AIRPORTS SPREAD ACROSS 1 MILLION UNITS ---
+        const AIRPORTS = [
+            { x: 0, z: 0, name: "INTERNATIONAL HUB", heading: "09" },
+            { x: 65000, z: -85000, name: "ISLAND AERODROME", heading: "27" },
+            { x: -90000, z: 45000, name: "WESTERN STRIP", heading: "18" },
+            { x: 55000, z: 85000, name: "NORTHERN BASE", heading: "36" },
+            { x: -120000, z: -75000, name: "SOUTH-WEST OUTPOST", heading: "14" },
+            { x: 140000, z: 25000, name: "EASTERN METROPOLIS", heading: "22" },
+            { x: -30000, z: 150000, name: "FAR NORTH STRIP", heading: "04" },
+            { x: 160000, z: -130000, name: "OCEANIC AIRSTRIP", heading: "31" },
+            { x: -180000, z: 10000, name: "DEEP DESERT BASE", heading: "09" },
+            { x: 20000, z: -180000, name: "SOUTHERN ICE CAP", heading: "18" },
+            { x: -90000, z: -160000, name: "TROPICAL ATOLL", heading: "27" },
+            { x: 180000, z: 170000, name: "MOUNTAIN VALLEY REGIONAL", heading: "36" }
+        ];
+
+        // --- 2. TEXTURE GENERATORS ---
+        // Generates a grayscale detail noise map to blend cleanly with Biome Vertex Colors
+        function createDetailTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 512, 512);
+            for(let i=0; i<25000; i++) { ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.12)'; ctx.fillRect(Math.random()*512, Math.random()*512, 4, 4); }
+            const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4000, 4000); return tex;
+        }
+
+        function createBuildingTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 512; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#1c222b'; ctx.fillRect(0, 0, 256, 512); ctx.fillStyle = '#d4edff';
+            for(let y=15; y<500; y+=16) { for(let x=12; x<240; x+=14) { if(Math.random() > 0.15) ctx.fillRect(x, y, 6, 9); } }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createAirportRunwayTexture(numStr) {
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 4096; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#222226'; ctx.fillRect(0, 0, 1024, 4096);
+            const grad = ctx.createLinearGradient(0, 800, 0, 2800);
+            grad.addColorStop(0, 'rgba(40,48,44,0)'); grad.addColorStop(0.3, 'rgba(10,10,10,0.85)'); grad.addColorStop(0.7, 'rgba(10,10,10,0.85)'); grad.addColorStop(1, 'rgba(40,48,44,0)');
+            ctx.fillStyle = grad; ctx.fillRect(120, 400, 784, 3200);
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(50, 0, 20, 4096); ctx.fillRect(954, 0, 20, 4096); 
+            for(let i=0; i<14; i++) { ctx.fillRect(130 + (i * 56), 160, 28, 240); ctx.fillRect(130 + (i * 56), 3696, 28, 240); } 
+            ctx.font = "bold 150px Courier New"; ctx.textAlign = "center";
+            ctx.save(); ctx.translate(512, 520); ctx.scale(1, 2.5); ctx.fillText(numStr, 0, 0); ctx.restore();
+            ctx.save(); ctx.translate(512, 3560); ctx.scale(1, 2.5); ctx.rotate(Math.PI); ctx.fillText(numStr, 0, 0); ctx.restore();
+            for(let i=480; i<3600; i+=320) { ctx.fillRect(496, i, 32, 160); } 
+            const tex = new THREE.CanvasTexture(canvas); tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); return tex;
+        }
+
+        // --- 3. DYNAMIC PROCEDURAL ENVIRONMENT ---
+        const worldGroup = new THREE.Group();
+        
+        const oceanGeo = new THREE.PlaneGeometry(2000000, 2000000); oceanGeo.rotateX(-Math.PI / 2);
+        const ocean = new THREE.Mesh(oceanGeo, new THREE.MeshPhysicalMaterial({ color: 0x051b33, roughness: 0.12, metalness: 0.95, clearcoat: 1.0, clearcoatRoughness: 0.05 })); 
+        ocean.position.y = OCEAN_ALT; ocean.receiveShadow = true; worldGroup.add(ocean);
+
+        function getTerrainHeight(x, z) {
+            let baseH = (Math.sin(x/8000)*1200) + (Math.cos(z/10000)*1500) + (Math.sin((x+z)/6000)*600);
+            
+            // Generate Mountain Biome Spikes
+            let dMountain = Math.hypot(x - 180000, z - 170000);
+            if (dMountain < 80000) baseH += (80000 - dMountain) * 0.15 + (Math.sin(x/3000)*2500); 
+
+            if (Math.abs(x) > 40000 || Math.abs(z) > 60000) baseH += (Math.sin(x/15000)*4000);
+            if (Math.abs(x) > 100000 || Math.abs(z) > 100000) baseH += (Math.cos(z/20000)*6000); 
+
+            let h = Math.max(OCEAN_ALT + 2, baseH); // Never overlap ocean!
+
+            // FLATTEN AIRPORTS PERFECTLY TO SOLVE LANDING GLITCHES
+            for(let i=0; i<AIRPORTS.length; i++) {
+                let port = AIRPORTS[i];
+                let distX = Math.abs(x - port.x);
+                let distZ = Math.abs(z - port.z);
+                if (distX < 12000 && distZ < 12000) { 
+                    let dist = Math.hypot(distX, distZ);
+                    if (dist < 10000) {
+                        if (dist > 7000) {
+                            let t = (10000 - dist) / 3000; // Smooth ramp up to runway height
+                            h = h * (1 - t) + AIRPORT_ALT * t;
+                        } else {
+                            h = AIRPORT_ALT; // Perfectly flat safe zone
+                        }
+                        break;
+                    }
+                }
+            }
+            return h;
+        }
+
+        const terrainGeo = new THREE.PlaneGeometry(1000000, 1000000, 256, 256); terrainGeo.rotateX(-Math.PI / 2);
+        const vertices = terrainGeo.attributes.position.array;
+        const colors = []; const colorObj = new THREE.Color();
+        
+        // BIOME VERTEX COLORING GENERATOR
+        for (let i = 0; i < vertices.length; i += 3) { 
+            let vx = vertices[i]; let vz = vertices[i+2]; 
+            let vy = getTerrainHeight(vx, vz);
+            vertices[i+1] = vy; 
+
+            let dMountain = Math.hypot(vx - 180000, vz - 170000);
+            let dDesert = Math.hypot(vx - (-180000), vz - 10000);
+            let dIce = Math.hypot(vx - 20000, vz - (-180000));
+            
+            if (dDesert < 70000) {
+                let t = Math.max(0, (70000 - dDesert) / 20000);
+                colorObj.lerpColors(new THREE.Color(0x3a6b27), new THREE.Color(0xd2b48c), Math.min(1, t)); // Sand
+            } else if (dMountain < 80000) {
+                let t = Math.max(0, (80000 - dMountain) / 20000);
+                let rockColor = vy > 2000 ? new THREE.Color(0xffffff) : new THREE.Color(0x5a5a5a);
+                colorObj.lerpColors(new THREE.Color(0x3a6b27), rockColor, Math.min(1, t)); // Rock/Snow
+            } else if (dIce < 70000) {
+                let t = Math.max(0, (70000 - dIce) / 20000);
+                colorObj.lerpColors(new THREE.Color(0x3a6b27), new THREE.Color(0xe0f7fa), Math.min(1, t)); // Ice
+            } else {
+                colorObj.setHex(0x3a6b27); // Standard Grass
+            }
+            colors.push(colorObj.r, colorObj.g, colorObj.b);
+        }
+        terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        terrainGeo.computeVertexNormals();
+        
+        const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ map: createDetailTexture(), vertexColors: true, roughness: 0.9, metalness: 0.05 })); 
+        terrain.receiveShadow = true; worldGroup.add(terrain);
+
+        // Build Massive Runways and Full-Size Airports
+        const runwayGeo = new THREE.PlaneGeometry(300, 12000); runwayGeo.rotateX(-Math.PI / 2);
+        const tarmacGeo = new THREE.PlaneGeometry(1000, 4000); tarmacGeo.rotateX(-Math.PI / 2);
+        const terminalGeo = new THREE.BoxGeometry(250, 80, 1600); terminalGeo.translate(0, 40, 0);
+        const towerGeo = new THREE.CylinderGeometry(25, 25, 250, 16); towerGeo.translate(0, 125, 0);
+        
+        // POLYGON OFFSET: Forces Runways to draw ON TOP of the flat terrain plateaus
+        const runwayMat = new THREE.MeshStandardMaterial({ map: createAirportRunwayTexture("09"), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        const tarmacMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+        const buildingMat = new THREE.MeshStandardMaterial({map: createBuildingTexture(), roughness: 0.4});
+
+        AIRPORTS.forEach(port => {
+            const rwMatInst = runwayMat.clone(); rwMatInst.map = createAirportRunwayTexture(port.heading);
+            const rwMesh = new THREE.Mesh(runwayGeo, rwMatInst);
+            rwMesh.position.set(port.x, AIRPORT_ALT, port.z); rwMesh.receiveShadow = true; worldGroup.add(rwMesh);
+
+            const apron = new THREE.Mesh(tarmacGeo, tarmacMat);
+            apron.position.set(port.x - 700, AIRPORT_ALT, port.z); apron.receiveShadow = true; worldGroup.add(apron);
+
+            const terminal = new THREE.Mesh(terminalGeo, buildingMat);
+            terminal.position.set(port.x - 1000, AIRPORT_ALT, port.z); terminal.castShadow = true; terminal.receiveShadow = true; worldGroup.add(terminal);
+            colliders.buildings.push({x: port.x - 1000, z: port.z, y: AIRPORT_ALT, w: 250, h: 80, d: 1600});
+
+            const tower = new THREE.Mesh(towerGeo, buildingMat);
+            tower.position.set(port.x - 500, AIRPORT_ALT, port.z + 1500); tower.castShadow = true; worldGroup.add(tower);
+            colliders.buildings.push({x: port.x - 500, z: port.z + 1500, y: AIRPORT_ALT, w: 50, h: 250, d: 50});
+
+            const ringGeo = new THREE.TorusGeometry(200, 15, 8, 32); const ringMat = new THREE.MeshBasicMaterial({color: 0x00ffaa, transparent: true, opacity: 0.5});
+            for(let i=1; i<=30; i++) {
+                const ring = new THREE.Mesh(ringGeo, ringMat); ring.position.set(port.x, AIRPORT_ALT + (i * 120), port.z + (i * 1800)); worldGroup.add(ring);
+            }
+        });
+
+        // --- FORESTS & HITBOXES ---
+        const treeMatrix = new THREE.Object3D(); const treeGeo = new THREE.ConeGeometry(18, 70, 5); treeGeo.translate(0, 35, 0);
+        const forestMesh = new THREE.InstancedMesh(treeGeo, new THREE.MeshStandardMaterial({ color: 0x14330f, roughness: 0.95 }), 12000);
+        forestMesh.castShadow = true; forestMesh.receiveShadow = true;
+        let clusterCount = 0;
+        while(clusterCount < 12000) {
+            let tx = (Math.random() - 0.5) * 600000; let tz = (Math.random() - 0.5) * 600000;
+            let nearAirport = false;
+            for(let port of AIRPORTS) { if (Math.abs(tx - port.x) < 9000 && Math.abs(tz - port.z) < 15000) nearAirport = true; }
+            if (nearAirport) continue;
+            
+            // Biome Filtering: Don't plant trees in Desert or Ice Cap!
+            let isDesert = Math.hypot(tx - (-180000), tz - 10000) < 60000;
+            let isIce = Math.hypot(tx - 20000, tz - (-180000)) < 60000;
+            if (isDesert || isIce) continue;
+
+            let h = getTerrainHeight(tx, tz);
+            if (h > OCEAN_ALT + 10 && h < 3500) {
+                treeMatrix.position.set(tx, h - 2, tz);
+                let ts = 0.6 + Math.random()*1.0; treeMatrix.scale.set(ts, ts, ts); treeMatrix.updateMatrix();
+                forestMesh.setMatrixAt(clusterCount++, treeMatrix.matrix);
+                colliders.trees.push({x: tx, z: tz, y: h - 2, h: 70 * ts, r: 18 * ts});
+            }
+        }
+        worldGroup.add(forestMesh); scene.add(worldGroup);
+
+        // --- 4. HIGH-POLY HD AIRLINER MODEL ---
+        const jet = new THREE.Group();
+        const jetMat = new THREE.MeshPhysicalMaterial({ color: 0xfafafa, roughness: 0.2, metalness: 0.15, clearcoat: 1.0 });
+        const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x02040a, metalness: 0.95, roughness: 0.0, transmission: 0.8, transparent: true });
+        const engineInsideMat = new THREE.MeshStandardMaterial({color: 0x111114, roughness: 0.9});
+        const tireMat = new THREE.MeshStandardMaterial({ color: 0x151518, roughness: 0.98 });
+        const strutMat = new THREE.MeshStandardMaterial({color: 0x9ca0a6, metalness:0.9, roughness: 0.2});
+
+        const fuseBody = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.3, 38, 64).rotateX(Math.PI/2), jetMat); fuseBody.position.z = 1.5; jet.add(fuseBody);
+        const winGeo = new THREE.BoxGeometry(0.08, 0.28, 0.35); 
+        for(let w=0; w<24; w++) {
+            const winL = new THREE.Mesh(winGeo, glassMat); winL.position.set(2.27, 0.3, -13 + w*1.2); jet.add(winL);
+            const winR = new THREE.Mesh(winGeo, glassMat); winR.position.set(-2.27, 0.3, -13 + w*1.2); jet.add(winR);
+        }
+
+        const noseBody = new THREE.Mesh(new THREE.SphereGeometry(2.3, 128, 64).rotateX(Math.PI/2), jetMat); noseBody.scale.set(1, 0.9, 1.8); noseBody.position.z = -17.5; jet.add(noseBody);
+        const cockpitGlass = new THREE.Mesh(new THREE.SphereGeometry(1.0, 64, 32), glassMat); cockpitGlass.scale.set(2.1, 0.8, 1.4); cockpitGlass.position.set(0, 1.35, -20.0); cockpitGlass.rotation.x = 0.15; jet.add(cockpitGlass);
+        const tailCone = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 0.3, 11, 64).rotateX(Math.PI/2), jetMat); tailCone.position.z = 26; jet.add(tailCone);
+        
+        const finShape = new THREE.Shape(); finShape.moveTo(0,0); finShape.lineTo(8, 11); finShape.lineTo(12, 11); finShape.lineTo(13, 0);
+        const fin = new THREE.Mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.3, bevelEnabled: true, bevelThickness: 0.05 }).rotateY(-Math.PI/2), jetMat); fin.position.set(0.15, 1.8, 20); jet.add(fin);
+
+        const hStabShape = new THREE.Shape(); hStabShape.moveTo(0,0); hStabShape.lineTo(11,-7); hStabShape.lineTo(11,-10); hStabShape.lineTo(0,-5);
+        const leftHStab = new THREE.Mesh(new THREE.ExtrudeGeometry(hStabShape, {depth: 0.15, bevelEnabled: true, bevelThickness: 0.05}).rotateX(Math.PI/2), jetMat); leftHStab.position.set(0, 0.6, 27); jet.add(leftHStab);
+        const rightHStab = leftHStab.clone(); rightHStab.scale.x = -1; jet.add(rightHStab);
+
+        const wingShape = new THREE.Shape(); wingShape.moveTo(0, 0); wingShape.lineTo(32, -15); wingShape.lineTo(31, -21); wingShape.lineTo(0, -9);
+        const leftWing = new THREE.Mesh(new THREE.ExtrudeGeometry(wingShape, { depth: 0.4, bevelEnabled: true, bevelThickness: 0.1 }).rotateX(Math.PI/2), jetMat); leftWing.position.set(0, -0.8, 2); leftWing.rotation.z = -0.06; jet.add(leftWing);
+        const rightWing = leftWing.clone(); rightWing.scale.x = -1; rightWing.rotation.z = 0.06; jet.add(rightWing);
+
+        const brakeGeo = new THREE.BoxGeometry(5, 0.3, 2.5); brakeGeo.translate(0, 0.15, 1.25);
+        const leftAirbrake = new THREE.Mesh(brakeGeo, jetMat); leftAirbrake.position.set(8, 0.2, 5); jet.add(leftAirbrake);
+        const rightAirbrake = leftAirbrake.clone(); rightAirbrake.position.x = -8; jet.add(rightAirbrake);
+
+        const engineGroupL = new THREE.Group(); engineGroupL.position.set(10.5, -2.2, 5);
+        const cowlFront = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.55, 2, 64).rotateX(Math.PI/2), jetMat); cowlFront.position.z = -1; 
+        const cowlRear = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.1, 4, 64).rotateX(Math.PI/2), jetMat); cowlRear.position.z = 2;
+        const fanDisk = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 0.1, 64).rotateX(Math.PI/2), engineInsideMat); fanDisk.position.z = -1.8;
+        const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.0, 32).rotateX(Math.PI/2), jetMat); spinner.position.z = -2.0;
+        const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.4, 2, 32).rotateX(Math.PI/2), strutMat); exhaust.position.z = 4.5;
+        engineGroupL.add(cowlFront, cowlRear, fanDisk, spinner, exhaust); jet.add(engineGroupL);
+        const engineGroupR = engineGroupL.clone(); engineGroupR.position.x = -10.5; jet.add(engineGroupR);
+
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.5, 32).rotateZ(Math.PI/2), tireMat); 
+        const noseGear = new THREE.Group(); noseGear.position.set(0, -2, -15); 
+        const noseStrut = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 2.5), strutMat); noseStrut.position.set(0, -1.25, 0); 
+        const noseWheel1 = wheel.clone(); noseWheel1.position.set(0.3, -2.5, 0); const noseWheel2 = wheel.clone(); noseWheel2.position.set(-0.3, -2.5, 0);
+        noseGear.add(noseStrut, noseWheel1, noseWheel2); jet.add(noseGear);
+
+        const mainGearL = new THREE.Group(); mainGearL.position.set(4, -2, 6); 
+        const mainStrutL = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 2.5), strutMat); mainStrutL.position.set(0, -1.25, 0);
+        const mainWheelL1 = wheel.clone(); mainWheelL1.position.set(0.5, -2.5, 0); const mainWheelL2 = wheel.clone(); mainWheelL2.position.set(-0.5, -2.5, 0);
+        mainGearL.add(mainStrutL, mainWheelL1, mainWheelL2); jet.add(mainGearL);
+
+        const mainGearR = new THREE.Group(); mainGearR.position.set(-4, -2, 6); 
+        const mainStrutR = mainStrutL.clone(); const mainWheelR1 = mainWheelL1.clone(); mainWheelR1.position.x = -0.5; const mainWheelR2 = mainWheelL2.clone(); mainWheelR2.position.x = 0.5;
+        mainGearR.add(mainStrutR, mainWheelR1, mainWheelR2); jet.add(mainGearR);
+
+        jet.traverse(function(child) { 
+            if (child.isMesh) { 
+                child.castShadow = true; child.receiveShadow = true; 
+                child.userData.initPos = child.position.clone(); child.userData.initRot = child.rotation.clone(); child.userData.initScale = child.scale.clone();
+            } 
+        });
+        scene.add(jet);
+
+        // --- 25 AI PLANES WITH ANTI-COLLISION LIGHTS ---
+        const aiPlanes = [];
+        const aiPlaneGeo = new THREE.Group();
+        const aiFuse = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 40, 16).rotateX(Math.PI/2), jetMat);
+        const aiWing = new THREE.Mesh(new THREE.BoxGeometry(65, 0.8, 10), jetMat); aiWing.position.set(0, -1, 2);
+        const aiTail = new THREE.Mesh(new THREE.BoxGeometry(0.8, 12, 10), jetMat); aiTail.position.set(0, 4, 18);
+        const beaconMat = new THREE.MeshBasicMaterial({color: 0xff0000});
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), beaconMat); beacon.position.set(0, -3, 0);
+        aiPlaneGeo.add(aiFuse, aiWing, aiTail, beacon);
+
+        for(let i=0; i<25; i++) {
+            let mesh = aiPlaneGeo.clone(); mesh.traverse(c => { if(c.isMesh && c!==beacon) { c.castShadow=true; c.receiveShadow=true; } });
+            scene.add(mesh);
+            
+            let startPort = AIRPORTS[Math.floor(Math.random() * AIRPORTS.length)];
+            let endPort = AIRPORTS[Math.floor(Math.random() * AIRPORTS.length)];
+            while(startPort === endPort) endPort = AIRPORTS[Math.floor(Math.random() * AIRPORTS.length)];
+            
+            mesh.position.set(startPort.x + (Math.random()*10000), 3000 + (Math.random()*4000), startPort.z + (Math.random()*10000));
+            
+            aiPlanes.push({
+                mesh: mesh, beacon: mesh.children[3],
+                speed: 150 + Math.random()*80, targetPort: endPort, state: 'CRUISE', phase: Math.random() * Math.PI * 2
+            });
+        }
+
+        function updateAITraffic(time) {
+            aiPlanes.forEach(ai => {
+                ai.beacon.material.opacity = (Math.sin(time * 5 + ai.phase) > 0.8) ? 1.0 : 0.0;
+                ai.beacon.material.transparent = true;
+
+                let forward = new THREE.Vector3(0,0,-1).applyQuaternion(ai.mesh.quaternion);
+                ai.mesh.position.add(forward.multiplyScalar(ai.speed * 0.015)); 
+
+                let targetPos = new THREE.Vector3(ai.targetPort.x, 4000, ai.targetPort.z + 20000);
+                let dist = ai.mesh.position.distanceTo(targetPos);
+
+                if (ai.state === 'CRUISE') {
+                    if (dist < 30000) ai.state = 'APPROACH';
+                } else if (ai.state === 'APPROACH') {
+                    targetPos.set(ai.targetPort.x, AIRPORT_ALT + 2.5, ai.targetPort.z - 6000);
+                    if (ai.mesh.position.y < AIRPORT_ALT + 50) ai.state = 'LANDING';
+                } else if (ai.state === 'LANDING') {
+                    targetPos.set(ai.targetPort.x, AIRPORT_ALT + 2.5, ai.targetPort.z - 10000); 
+                    ai.speed *= 0.99;
+                    if (ai.speed < 10) { 
+                        let newPort = AIRPORTS[Math.floor(Math.random() * AIRPORTS.length)];
+                        while(newPort === ai.targetPort) newPort = AIRPORTS[Math.floor(Math.random() * AIRPORTS.length)];
+                        ai.targetPort = newPort;
+                        ai.mesh.position.set(ai.targetPort.x + (Math.random()*4000-2000), 3000, ai.targetPort.z + 30000);
+                        ai.state = 'CRUISE'; ai.speed = 150 + Math.random()*80;
+                    }
+                }
+                
+                let dir = targetPos.clone().sub(ai.mesh.position).normalize();
+                let targetQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,-1), dir);
+                ai.mesh.quaternion.slerp(targetQuat, 0.005); 
+                
+                let groundY = Math.max(getTerrainHeight(ai.mesh.position.x, ai.mesh.position.z), OCEAN_ALT);
+                if (ai.mesh.position.y < groundY + 5) ai.mesh.position.y = groundY + 5;
+            });
+        }
+
+        // --- EXHAUST SMOKE ---
+        const plumeParticles = []; const plumeMax = 80;
+        const plumeInstanced = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 8, 8), new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.25, blending: THREE.NormalBlending }), plumeMax);
+        scene.add(plumeInstanced);
+        for(let p=0; p<plumeMax; p++) { plumeParticles.push({ active: false, pos: new THREE.Vector3(), age: 0, maxAge: 1, size: 1.0 }); }
+        let plumeIndex = 0;
+
+        function updateExhaustSmoke(leftPos, rightPos, enginePower) {
+            if(enginePower > 0.05) {
+                const spawnCount = enginePower > 0.6 ? 2 : 1;
+                for(let s=0; s<spawnCount; s++) {
+                    let pL = plumeParticles[plumeIndex]; pL.active = true; pL.pos.copy(leftPos); pL.age = 0; pL.maxAge = 35 + Math.random()*25; pL.size = 0.8 + Math.random()*0.4;
+                    plumeIndex = (plumeIndex + 1) % plumeMax;
+                    let pR = plumeParticles[plumeIndex]; pR.active = true; pR.pos.copy(rightPos); pR.age = 0; pR.maxAge = 35 + Math.random()*25; pR.size = 0.8 + Math.random()*0.4;
+                    plumeIndex = (plumeIndex + 1) % plumeMax;
+                }
+            }
+            const dummy = new THREE.Object3D();
+            for(let i=0; i<plumeMax; i++) {
+                let p = plumeParticles[i];
+                if(p.active) {
+                    p.age++; p.pos.x += (Math.random() - 0.5) * 0.2; p.pos.y += (Math.random() - 0.3) * 0.15; 
+                    let currentScale = p.size * (1.0 + (p.age / p.maxAge) * 5.0);
+                    dummy.position.copy(p.pos); dummy.scale.set(currentScale, currentScale, currentScale); dummy.updateMatrix();
+                    plumeInstanced.setMatrixAt(i, dummy.matrix);
+                    if(p.age >= p.maxAge) p.active = false;
+                } else { dummy.position.set(0, -5000, 0); dummy.scale.set(0,0,0); dummy.updateMatrix(); plumeInstanced.setMatrixAt(i, dummy.matrix); }
+            }
+            plumeInstanced.instanceMatrix.needsUpdate = true;
+        }
+
+        // --- 5. AUDIO ENGINE ---
+        let audioCtx = null; let engineRumbleGain, engineRushGain, turbineGain, windGain; let turbineWhine1, turbineWhine2;
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const bufferSize = 2 * audioCtx.sampleRate; const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+
+            const rumbleNoise = audioCtx.createBufferSource(); rumbleNoise.buffer = noiseBuffer; rumbleNoise.loop = true;
+            const rumbleFilter = audioCtx.createBiquadFilter(); rumbleFilter.type = 'lowpass'; rumbleFilter.frequency.value = 180;
+            engineRumbleGain = audioCtx.createGain(); engineRumbleGain.gain.value = 0;
+            rumbleNoise.connect(rumbleFilter).connect(engineRumbleGain).connect(audioCtx.destination);
+
+            const rushNoise = audioCtx.createBufferSource(); rushNoise.buffer = noiseBuffer; rushNoise.loop = true;
+            const rushFilter = audioCtx.createBiquadFilter(); rushFilter.type = 'bandpass'; rushFilter.frequency.value = 1200; rushFilter.Q.value = 0.5;
+            engineRushGain = audioCtx.createGain(); engineRushGain.gain.value = 0;
+            rushNoise.connect(rushFilter).connect(engineRushGain).connect(audioCtx.destination);
+
+            turbineWhine1 = audioCtx.createOscillator(); turbineWhine1.type = 'sine'; turbineWhine2 = audioCtx.createOscillator(); turbineWhine2.type = 'sine';
+            turbineGain = audioCtx.createGain(); turbineGain.gain.value = 0;
+            turbineWhine1.connect(turbineGain); turbineWhine2.connect(turbineGain); turbineGain.connect(audioCtx.destination);
+
+            const windNoise = audioCtx.createBufferSource(); windNoise.buffer = noiseBuffer; windNoise.loop = true;
+            const windFilter = audioCtx.createBiquadFilter(); windFilter.type = 'lowpass'; windFilter.frequency.value = 400;
+            windGain = audioCtx.createGain(); windGain.gain.value = 0;
+            windNoise.connect(windFilter).connect(windGain).connect(audioCtx.destination);
+
+            rumbleNoise.start(); rushNoise.start(); windNoise.start(); turbineWhine1.start(); turbineWhine2.start();
+        }
+
+        function playCrashSound() {
+            if (!audioCtx) return;
+            const crashOsc = audioCtx.createOscillator(); const crashGain = audioCtx.createGain();
+            crashOsc.type = 'sawtooth'; crashOsc.frequency.setValueAtTime(75, audioCtx.currentTime);
+            crashOsc.frequency.linearRampToValueAtTime(8, audioCtx.currentTime + 1.4);
+            crashGain.gain.setValueAtTime(0.5, audioCtx.currentTime); crashGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
+            crashOsc.connect(crashGain); crashGain.connect(audioCtx.destination); crashOsc.start(); crashOsc.stop(audioCtx.currentTime + 1.5);
+            if (engineRumbleGain) engineRumbleGain.gain.setValueAtTime(0, audioCtx.currentTime); if (engineRushGain) engineRushGain.gain.setValueAtTime(0, audioCtx.currentTime); if (turbineGain) turbineGain.gain.setValueAtTime(0, audioCtx.currentTime); if (windGain) windGain.gain.setValueAtTime(0, audioCtx.currentTime);
+        }
+
+        function playTouchdownSound() {
+            if (!audioCtx) return;
+            const chirpOsc = audioCtx.createOscillator(); const chirpGain = audioCtx.createGain();
+            chirpOsc.type = 'sine'; chirpOsc.frequency.setValueAtTime(750, audioCtx.currentTime);
+            chirpOsc.frequency.exponentialRampToValueAtTime(550, audioCtx.currentTime + 0.12);
+            chirpGain.gain.setValueAtTime(0.12, audioCtx.currentTime); chirpGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+            chirpOsc.connect(chirpGain); chirpGain.connect(audioCtx.destination); chirpOsc.start(); chirpOsc.stop(audioCtx.currentTime + 0.13);
+        }
+
+        // --- 6. PERFECT SPAWNING PHYSICS ---
+        const ALTITUDE_LIMIT = 60000; 
+        
+        // Spawns beautifully lined up perfectly on top of the concrete runway of the International Hub
+        let position = new THREE.Vector3(AIRPORTS[0].x, AIRPORT_ALT + PLANE_WHEEL_OFFSET, AIRPORTS[0].z + 5000); 
+        let rotation = new THREE.Euler(0, 0, 0, 'YXZ'); let velocity = new THREE.Vector3(0, 0, 0); 
+        let throttleCommand = 0.0, engineN1 = 0.0, speed = 0; 
+        let isCrashed = false, isGearDown = true, gearDeployAmt = 1.0, flapsSetting = 0; 
+        let isAirbrakeOn = false, airbrakeDeployAmt = 0;
+        let mapVisible = false, wasAirborne = false, activeCrashAnimation = false;
+
+        const GRAVITY = 0.11; const PITCH_POWER = 0.012; const ROLL_POWER = 0.014; const YAW_POWER = 0.012;
+        const mapCanvas = document.getElementById('minimap'); const mapCtx = mapCanvas.getContext('2d');
+        const largeMapCanvas = document.getElementById('large-map'); const lMapCtx = largeMapCanvas.getContext('2d');
+
+        // --- 7. CONTROLS ---
+        const keys = { w: false, s: false, a: false, d: false, q: false, e: false, shift: false, control: false };
+        let gPressed = false, fPressed = false, bPressed = false, mPressed = false;
+
+        window.addEventListener('keydown', (e) => {
+            initAudio(); let key = e.key.toLowerCase(); if (e.key === "Shift") key = "shift"; if (e.key === "Control") key = "control";
+            if (key in keys) keys[key] = true;
+            if (key === 'g' && !gPressed) { isGearDown = !isGearDown; gPressed = true; document.getElementById('gear-ind').className = isGearDown ? "sys-box active" : "sys-box"; }
+            if (key === 'f' && !fPressed) { flapsSetting = (flapsSetting + 1) % 3; fPressed = true; document.getElementById('flap-ind').className = flapsSetting > 0 ? "sys-box warning" : "sys-box"; }
+            if (key === 'b' && !bPressed) { isAirbrakeOn = !isAirbrakeOn; bPressed = true; document.getElementById('brake-ind').className = isAirbrakeOn ? "sys-box critical" : "sys-box"; }
+            if (key === 'm' && !mPressed) { mapVisible = !mapVisible; mPressed = true; document.getElementById('large-map-panel').style.display = mapVisible ? 'flex' : 'none'; }
+        });
+        window.addEventListener('keyup', (e) => {
+            let key = e.key.toLowerCase(); if (e.key === "Shift") key = "shift"; if (e.key === "Control") key = "control";
+            if (key in keys) keys[key] = false;
+            if (key === 'g') gPressed = false; if (key === 'f') fPressed = false; if (key === 'b') bPressed = false; if (key === 'm') mPressed = false;
+        });
+
+        const leverUI = document.getElementById('throttle-lever'); const quadUI = document.getElementById('throttle-quadrant'); let isDraggingLever = false;
+        leverUI.addEventListener('mousedown', (e) => { initAudio(); isDraggingLever = true; e.preventDefault(); });
+        window.addEventListener('mouseup', () => { isDraggingLever = false; });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingLever) return; let yOffset = e.clientY - (quadUI.getBoundingClientRect().top + 10);
+            throttleCommand = Math.max(0.0, Math.min(1.0, 1.0 - (yOffset / 140)));
+        });
+
+        function resetFlight() {
+            jet.children.forEach(child => { if (child.userData.initPos) { child.position.copy(child.userData.initPos); child.rotation.copy(child.userData.initRot); child.scale.copy(child.userData.initScale); } });
+            
+            position.set(AIRPORTS[0].x, AIRPORT_ALT + PLANE_WHEEL_OFFSET, AIRPORTS[0].z + 5000); 
+            rotation.set(0, 0, 0); velocity.set(0, 0, 0);
+            
+            throttleCommand = 0.0; engineN1 = 0.0; speed = 0; isCrashed = false; activeCrashAnimation = false;
+            isGearDown = true; gearDeployAmt = 1.0; flapsSetting = 0; isAirbrakeOn = false; airbrakeDeployAmt = 0; wasAirborne = false;
+            noseGear.rotation.x = 0; mainGearL.rotation.z = 0; mainGearR.rotation.z = 0;
+            document.getElementById("crash-screen").style.display = "none";
+            document.getElementById('gear-ind').className = "sys-box active"; document.getElementById('flap-ind').className = "sys-box"; document.getElementById('brake-ind').className = "sys-box";
+            if (audioCtx) { engineRumbleGain.gain.setValueAtTime(0.0, audioCtx.currentTime); engineRushGain.gain.setValueAtTime(0.0, audioCtx.currentTime); turbineGain.gain.setValueAtTime(0.0, audioCtx.currentTime); windGain.gain.setValueAtTime(0.0, audioCtx.currentTime); }
+        }
+
+        function triggerCrash(reason) {
+            isCrashed = true; activeCrashAnimation = true; playCrashSound();
+            document.getElementById("crash-reason").innerText = "CRASH: " + reason;
+            document.getElementById("crash-screen").style.display = "block";
+
+            jet.children.forEach(child => {
+                if (child === fuseBody || child === noseBody) child.scale.set(1.0, 0.4, 0.4); 
+                else { child.userData.physVel = new THREE.Vector3((Math.random()-0.5)*15, Math.random()*10, (Math.random()-0.5)*15); child.userData.physRot = new THREE.Vector3(Math.random()*0.3, Math.random()*0.3, Math.random()*0.3); }
+            });
+        }
+
+        function runCrashPhysics() {
+            let groundSurfaceY = Math.max(getTerrainHeight(position.x, position.z), OCEAN_ALT);
+            jet.children.forEach(child => {
+                if (child.userData.physVel) {
+                    child.position.add(child.userData.physVel); child.userData.physVel.y -= 0.4; 
+                    let partWorldY = position.y + child.position.y;
+                    if (partWorldY < groundSurfaceY) {
+                        child.position.y = groundSurfaceY - position.y;
+                        child.userData.physVel.y *= -0.4; child.userData.physVel.x *= 0.8; child.userData.physVel.z *= 0.8;
+                    }
+                    child.rotation.x += child.userData.physRot.x; child.rotation.y += child.userData.physRot.y; child.rotation.z += child.userData.physRot.z;
+                }
+            });
+            updateAITraffic(performance.now() * 0.001);
+            renderer.render(scene, camera);
+        }
+
+        function findNearestAirport() {
+            let nearestPort = AIRPORTS[0];
+            let nearDist = Infinity;
+            for (let port of AIRPORTS) {
+                let distance = Math.hypot(position.x - port.x, position.z - port.z);
+                if (distance < nearDist) {
+                    nearDist = distance;
+                    nearestPort = port;
+                }
+            }
+            return { port: nearestPort, distance: nearDist };
+        }
+
+        function updateFlightAssist(radarAltFeet, displaySpeed, nearestInfo, autoFlareActive) {
+            const assistLabel = document.getElementById("assist-txt");
+            const assistDetail = document.getElementById("assist-detail");
+            let label = "ACTIVE";
+            let color = "#00ffaa";
+            let detail = "Maintain a smooth pitch and watch the nearest runway.";
+
+            if (autoFlareActive) {
+                label = "AUTO-FLARE";
+                detail = "Holding a gentle nose-up attitude for touchdown.";
+            } else if (displaySpeed < 40 && radarAltFeet < 25 && engineN1 < 0.25) {
+                label = "TAKEOFF READY";
+                detail = "Add thrust and keep wings level on the runway.";
+            } else if (displaySpeed >= 40 && displaySpeed < 155 && radarAltFeet < 80) {
+                label = "ROTATE SOON";
+                detail = "Build speed, then lift the nose gently.";
+            } else if (radarAltFeet > 250 && !isGearDown && nearestInfo.distance < 18000) {
+                label = "APPROACH";
+                color = "#ffaa00";
+                detail = "Runway nearby. Plan gear, flaps, and a slower descent.";
+            } else if (radarAltFeet > 5000 && Math.abs(rotation.z) > 0.6) {
+                label = "BANK ANGLE";
+                color = "#ffaa00";
+                detail = "Level the wings before the turn gets too steep.";
+            } else if (displaySpeed > 700) {
+                label = "OVERSPEED";
+                color = "#ff3333";
+                detail = "Reduce thrust or use airbrake before structural limits.";
+            } else if (radarAltFeet < 600 && velocity.y < -6) {
+                label = "SINK RATE";
+                color = "#ff3333";
+                detail = "Reduce descent rate before landing.";
+            } else if (nearestInfo.distance < 8000 && displaySpeed < 20 && radarAltFeet < 25) {
+                label = "ARRIVAL";
+                detail = "Aircraft stopped near " + nearestInfo.port.name + ".";
+            }
+
+            assistLabel.innerText = label;
+            assistLabel.style.color = color;
+            assistDetail.innerText = detail;
+        }
+
+        // --- 8. SIMULATION RUNTIME LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            let time = performance.now() * 0.001;
+            
+            if (isCrashed) { if (activeCrashAnimation) runCrashPhysics(); return; }
+
+            updateAITraffic(time); 
+
+            const speedBox = document.getElementById("speed-val");
+
+            if (!isDraggingLever) {
+                if (keys.shift) throttleCommand = Math.min(1.0, throttleCommand + 0.003); 
+                if (keys.control) throttleCommand = Math.max(0.0, throttleCommand - 0.005); 
+            }
+            engineN1 += (throttleCommand - engineN1) * 0.003;
+
+            gearDeployAmt += (isGearDown ? 0.015 : -0.015); gearDeployAmt = Math.max(0, Math.min(1, gearDeployAmt));
+            let easeGear = Math.sin((gearDeployAmt * Math.PI) / 2); 
+            noseGear.rotation.x = (1.0 - easeGear) * (-Math.PI / 2); mainGearL.rotation.z = (1.0 - easeGear) * (Math.PI / 2); mainGearR.rotation.z = (1.0 - easeGear) * (-Math.PI / 2);
+            noseGear.position.y = -2 + ((1.0 - easeGear) * 1.5); mainGearL.position.y = -2 + ((1.0 - easeGear) * 1.5); mainGearR.position.y = -2 + ((1.0 - easeGear) * 1.5);
+
+            airbrakeDeployAmt += (isAirbrakeOn ? 0.05 : -0.05); airbrakeDeployAmt = Math.max(0, Math.min(1, airbrakeDeployAmt));
+            leftAirbrake.rotation.x = -airbrakeDeployAmt * (Math.PI / 3); rightAirbrake.rotation.x = -airbrakeDeployAmt * (Math.PI / 3);
+
+            let controlAuth = Math.min(1.0, speed / 40); if (speed < 10) controlAuth = 0.5; 
+            if (keys.q) { rotation.y += YAW_POWER * controlAuth; rotation.z += ROLL_POWER * 0.4 * controlAuth; }
+            if (keys.e) { rotation.y -= YAW_POWER * controlAuth; rotation.z -= ROLL_POWER * 0.4 * controlAuth; }
+            if (keys.w) rotation.x -= PITCH_POWER * controlAuth; if (keys.s) rotation.x += PITCH_POWER * controlAuth;
+            if (keys.a) rotation.z += ROLL_POWER * controlAuth; if (keys.d) rotation.z -= ROLL_POWER * controlAuth;
+
+            let rawTerrainY = getTerrainHeight(position.x, position.z); 
+            let groundSurfaceY = Math.max(rawTerrainY, OCEAN_ALT); 
+
+            if (!keys.a && !keys.d && !keys.q && !keys.e && Math.abs(rotation.z) > 0.001) rotation.z += (0 - rotation.z) * 0.04;
+            if (!keys.w && !keys.s && Math.abs(rotation.x) > 0.001 && position.y > groundSurfaceY + 20) rotation.x += (0 - rotation.x) * 0.02; 
+
+            let radarAltFeet = Math.max(0, (position.y - groundSurfaceY - PLANE_WHEEL_OFFSET) * 10);
+            const nearestAirport = findNearestAirport();
+            
+            let autoFlareActive = false;
+            if (radarAltFeet < 150 && position.y > groundSurfaceY + PLANE_WHEEL_OFFSET && isGearDown && velocity.y < 0) {
+                autoFlareActive = true;
+                rotation.x += (0.06 - rotation.x) * 0.05; 
+                if (throttleCommand < 0.1 && velocity.y < -3.0) velocity.y *= 0.96; 
+            }
+
+            jet.quaternion.setFromEuler(rotation);
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(jet.quaternion); const up = new THREE.Vector3(0, 1, 0).applyQuaternion(jet.quaternion);
+
+            const airDensity = Math.max(0.05, 1.0 - (radarAltFeet / ALTITUDE_LIMIT) * 0.7); 
+            let brakingForce = (throttleCommand === 0.0 && position.y <= groundSurfaceY + PLANE_WHEEL_OFFSET + 1) ? 0.45 : 0.0;
+            
+            const totalDrag = 0.03 + (speed * speed * 0.0012) + (isGearDown ? 0.12 : 0.0) + (flapsSetting * 0.1) + (airbrakeDeployAmt * 0.3) + brakingForce;
+            const thrust = engineN1 * 26 * airDensity; 
+            
+            speed = Math.max(0, speed + ((thrust - (totalDrag * 5)) * 0.0005) + (forward.y * GRAVITY * 0.5)); 
+            let liftAmount = ((speed / 34) + (flapsSetting * 0.2)) * GRAVITY * airDensity * Math.cos(rotation.z);
+            if (position.y > groundSurfaceY + PLANE_WHEEL_OFFSET) rotation.y += Math.sin(rotation.z) * (liftAmount / 15); 
+
+            velocity.copy(forward).multiplyScalar(speed); velocity.y -= GRAVITY; velocity.addScaledVector(up, liftAmount); position.add(velocity);
+
+            const displaySpeed = Math.round(speed * 3.5); 
+            updateFlightAssist(radarAltFeet, displaySpeed, nearestAirport, autoFlareActive);
+            if (displaySpeed > 800) { triggerCrash("OVERSPEED (STRUCTURAL BREAKUP)"); return; }
+            if (displaySpeed > 750) speedBox.style.color = "#ff3333"; else speedBox.style.color = "#ffffff";
+
+            let obstacleHit = null;
+            for(let ai of aiPlanes) { if (position.distanceTo(ai.mesh.position) < 35) { obstacleHit = "AI TRAFFIC (MID-AIR)"; break; } }
+            if (!obstacleHit) { for(let t of colliders.trees) { if(Math.hypot(position.x - t.x, position.z - t.z) < t.r + 15 && position.y < t.y + t.h + 5) { obstacleHit = "PINE TREE"; break; } } }
+            if (!obstacleHit) { for(let b of colliders.buildings) { if(Math.hypot(position.x - b.x, position.z - b.z) < Math.max(b.w, b.d)/2 + 20 && position.y < b.y + b.h + 5) { obstacleHit = "BUILDING"; break; } } }
+            if (!obstacleHit && radarAltFeet < 20 && speed > 50 && velocity.y > -2) {
+                if (getTerrainHeight(position.x + forward.x * 50, position.z + forward.z * 50) > position.y + 10) obstacleHit = "MOUNTAIN TERRAIN";
+            }
+            if (obstacleHit) { triggerCrash("COLLISION WITH " + obstacleHit); return; }
+
+            if (audioCtx) {
+                engineRumbleGain.gain.setTargetAtTime(0.05 + (engineN1 * 0.4), audioCtx.currentTime, 0.1);
+                engineRushGain.gain.setTargetAtTime(0.02 + (engineN1 * 0.25), audioCtx.currentTime, 0.1);
+                let baseWhineFreq = 2200 + (engineN1 * 4000);
+                turbineWhine1.frequency.setTargetAtTime(baseWhineFreq, audioCtx.currentTime, 0.1);
+                turbineWhine2.frequency.setTargetAtTime(baseWhineFreq * 1.012, audioCtx.currentTime, 0.1); 
+                turbineGain.gain.setTargetAtTime(engineN1 * 0.15, audioCtx.currentTime, 0.1);
+                windGain.gain.setTargetAtTime(Math.min(0.4, (speed / 120) * 0.4) + (airbrakeDeployAmt * 0.25), audioCtx.currentTime, 0.1);
+            }
+
+            let camShake = (airbrakeDeployAmt * 0.15) * (speed / 100); 
+            if (position.y <= groundSurfaceY + PLANE_WHEEL_OFFSET) {
+                if (rawTerrainY <= OCEAN_ALT + 2 && radarAltFeet < 5) triggerCrash("WATER DITCHING");
+                else {
+                    if (speed > 130 && velocity.y < -9.0) triggerCrash("HARD LANDING (STRUCTURAL BREAKUP)");
+                    else if (velocity.y < -13.0) triggerCrash("SINK RATE EXCEEDED");
+                    else if (Math.abs(rotation.z) > 0.85) triggerCrash("WINGTIP STRIKE"); 
+                    else if (rotation.x < -0.40) triggerCrash("NOSE COLLAPSE"); 
+                    else if (!isGearDown || gearDeployAmt < 0.5) triggerCrash("BELLY LANDING - SPAR FIRE");
+                    else {
+                        if (wasAirborne) { playTouchdownSound(); wasAirborne = false; }
+                        position.y = groundSurfaceY + PLANE_WHEEL_OFFSET; velocity.y = 0; rotation.z = 0; if (rotation.x < 0) rotation.x = 0; 
+                        if (speed > 10 && engineN1 > 0.1) camShake += speed * 0.003; 
+                        if (throttleCommand === 0) speed *= 0.94; 
+                        
+                        if (speed < 5 && nearestAirport.distance < 8000) { document.getElementById("status").innerText = "ARRIVED: " + nearestAirport.port.name; document.getElementById("status").style.color = "#00ffaa"; } 
+                        else {
+                            if (speed > 42) document.getElementById("status").innerText = "V1 - ROTATE";
+                            else if (speed > 10) document.getElementById("status").innerText = "TAKEOFF ROLL";
+                            else document.getElementById("status").innerText = "HOLDING SHORT";
+                            document.getElementById("status").style.color = "#fff";
+                        }
+                    }
+                }
+            } else { wasAirborne = true; document.getElementById("status").innerText = "AIRBORNE"; document.getElementById("status").style.color = "#fff"; }
+
+            jet.position.copy(position);
+            sun.position.copy(position).add(new THREE.Vector3(500, 1000, 200)); sun.target.position.copy(position); sun.target.updateMatrixWorld();
+
+            const altPercent = radarAltFeet / ALTITUDE_LIMIT; const currentSkyColor = groundColor.clone().lerp(highAltColor, altPercent);
+            scene.background = currentSkyColor; scene.fog.color = currentSkyColor; scene.fog.density = 0.000006 * (1.0 - (altPercent * 0.9));
+
+            camera.fov = baseFOV + (speed * 0.08); camera.updateProjectionMatrix();
+            const offset = new THREE.Vector3((Math.random() - 0.5) * camShake, 15 + (Math.random() - 0.5) * camShake, 70).applyQuaternion(jet.quaternion);
+            camera.position.copy(position).add(offset); camera.lookAt(position.clone().add(forward.multiplyScalar(80)));
+
+            const leftExhaustWorld = new THREE.Vector3(10.5, -2.2, 9.5).applyQuaternion(jet.quaternion).add(position);
+            const rightExhaustWorld = new THREE.Vector3(-10.5, -2.2, 9.5).applyQuaternion(jet.quaternion).add(position);
+            updateExhaustSmoke(leftExhaustWorld, rightExhaustWorld, engineN1);
+
+            document.getElementById("speed-needle").style.transform = `rotate(${Math.max(-90, Math.min(90, (displaySpeed / 1000) * 180 - 90))}deg)`;
+            leverUI.style.bottom = `${10 + (throttleCommand * 135)}px`;
+            speedBox.innerText = displaySpeed; document.getElementById("throttle-val").innerText = `${Math.round(engineN1 * 100)}%`; document.getElementById("alt-val").innerText = radarAltFeet.toFixed(0);
+            
+            let pitchDeg = rotation.x * (180 / Math.PI);
+            document.getElementById("pitch-val").innerText = `${Math.round(pitchDeg)}°`; document.getElementById("roll-val").innerText = `${Math.round(-rotation.z * (180/Math.PI))}°`;
+            document.getElementById("ladder").style.transform = `rotate(${Math.round(rotation.z * (180/Math.PI))}deg) translateY(${Math.round(pitchDeg) * 3}px)`;
+            
+            document.getElementById("dist-val").innerText = (nearestAirport.distance / 2000).toFixed(1);
+            document.getElementById("nearest-name").innerText = nearestAirport.port.name + " RWY " + nearestAirport.port.heading;
+
+            mapCtx.clearRect(0, 0, 160, 160); mapCtx.save(); mapCtx.translate(80, 80);
+            const scale = 0.0012; 
+            for(let p of AIRPORTS) { mapCtx.fillStyle = '#00ffaa'; mapCtx.fillRect((p.x - position.x) * scale - 2, (p.z - position.z) * scale - 12, 4, 24); }
+            mapCtx.rotate(rotation.y); mapCtx.fillStyle = 'white'; mapCtx.beginPath(); mapCtx.moveTo(0, -7); mapCtx.lineTo(5, 5); mapCtx.lineTo(-5, 5); mapCtx.fill(); mapCtx.restore();
+
+            if (mapVisible) {
+                lMapCtx.clearRect(0, 0, 700, 700); lMapCtx.save();
+                
+                // MAP ZOOMED OUT TO SHOW EVERYTHING (Scale: 1 / 1200)
+                const lScale = 1 / 1200; 
+                const cX = 0; const cZ = 0; 
+                
+                lMapCtx.translate(350, 350); 
+                lMapCtx.strokeStyle = 'rgba(0, 255, 170, 0.08)'; lMapCtx.lineWidth = 1;
+                for(let i = -350; i <= 350; i += 50) {
+                    lMapCtx.beginPath(); lMapCtx.moveTo(i, -350); lMapCtx.lineTo(i, 350); lMapCtx.stroke();
+                    lMapCtx.beginPath(); lMapCtx.moveTo(-350, i); lMapCtx.lineTo(350, i); lMapCtx.stroke();
+                }
+                for(let p of AIRPORTS) {
+                    let mX = (p.x - cX) * lScale; let mZ = (p.z - cZ) * lScale;
+                    lMapCtx.fillStyle = '#00ffaa'; lMapCtx.fillRect(mX - 4, mZ - 10, 8, 20);
+                    lMapCtx.fillStyle = '#fff'; lMapCtx.font = "11px monospace"; lMapCtx.fillText(p.name, mX + 12, mZ + 4);
+                }
+                for(let ai of aiPlanes) {
+                    let aiX = (ai.mesh.position.x - cX) * lScale; let aiZ = (ai.mesh.position.z - cZ) * lScale;
+                    lMapCtx.fillStyle = '#ffaa00'; lMapCtx.fillRect(aiX - 2, aiZ - 2, 4, 4);
+                }
+                let pX = (position.x - cX) * lScale; let pZ = (position.z - cZ) * lScale;
+                lMapCtx.translate(pX, pZ); lMapCtx.rotate(rotation.y);
+                lMapCtx.fillStyle = '#ff4a4a'; lMapCtx.beginPath(); lMapCtx.moveTo(0, -12); lMapCtx.lineTo(7, 7); lMapCtx.lineTo(-7, 7); lMapCtx.fill();
+                lMapCtx.restore();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        animate();
+    </script>
+</body>
+</html>
